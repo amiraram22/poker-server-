@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--wood:#1a1410;--felt:#0f3d2b;--felt2:#0b2f21;--ivory:#f6f1e3;--ink:#1c1a17;--brass:#c9a24a;--red:#b3262e;--muted:#8fae9f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--wood);color:var(--ivory);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input{font:inherit}
+#app{height:100%;display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));gap:8px}
+.hidden{display:none!important}
+/* join */
+#join{margin:auto;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
+#join h1{font:700 34px Georgia,serif;margin:0 0 4px}
+#join p{margin:0;color:var(--muted)}
+input{width:100%;padding:13px 14px;border-radius:10px;border:1px solid #3a3228;background:#241c16;color:var(--ivory)}
+.btn{border:0;border-radius:10px;padding:13px 16px;background:var(--brass);color:#241c10;font-weight:700}
+.btn.ghost{background:#2c231b;color:var(--ivory);font-weight:600}
+.btn:disabled{opacity:.4}
+/* game */
+#game{flex:1;display:flex;flex-direction:column;gap:8px;min-height:0}
+#top{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+#top b{color:var(--ivory)}
+#seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}
+.seat{background:#241c16;border-radius:10px;padding:7px 8px;border:2px solid transparent;font-size:13px;min-height:62px}
+.seat.turn{border-color:var(--brass)}
+.seat.out{opacity:.45}
+.seat .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat .c{color:var(--muted)}
+.seat .cards{display:flex;gap:3px;margin-top:4px}
+#felt{flex:1;min-height:150px;border-radius:22px;background:radial-gradient(ellipse at center,var(--felt),var(--felt2));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border:3px solid #2a2118}
+#pot{font:700 22px Georgia,serif;color:var(--brass)}
+#board{display:flex;gap:5px}
+#msg{min-height:22px;text-align:center;font-size:15px}
+/* cards */
+.card{width:48px;height:68px;border-radius:7px;background:var(--ivory);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 24px/1 Georgia,serif;box-shadow:0 1px 3px #0008}
+.card i{font-style:normal;font-size:24px}
+.card.red{color:var(--red)}
+.card.back{background:repeating-linear-gradient(45deg,#7a1f2a,#7a1f2a 5px,#5e1721 5px,#5e1721 10px);border:2px solid var(--ivory)}
+.card.empty{background:#0000;border:2px dashed #ffffff30;box-shadow:none}
+.card.sm{width:26px;height:37px;font-size:14px;border-radius:4px}
+.card.sm i{font-size:13px}
+.card.big{width:64px;height:92px;font-size:32px}
+.card.big i{font-size:32px}
+/* me */
+#me{display:flex;align-items:center;justify-content:center;gap:14px}
+#me .info{font-size:14px;color:var(--muted)}
+#me .info b{display:block;color:var(--ivory);font-size:18px}
+#hole{display:flex;gap:6px}
+#actions{display:flex;flex-direction:column;gap:8px}
+#actions .row{display:flex;gap:8px}
+#actions .row .btn{flex:1}
+#actions input[type=range]{padding:0;accent-color:var(--brass)}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--red);color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;max-width:90%}
+#dc{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="join">
+    <h1>Poker</h1>
+    <p>Play Texas Hold'em with friends. Enter a room code and share it with them.</p>
+    <input id="name" placeholder="Your name" maxlength="20" autocomplete="off">
+    <input id="room" placeholder="Room code (letters and numbers)" maxlength="24" autocomplete="off">
+    <button class="btn" id="go">Join table</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <div id="top"><span>Room <b id="roomLabel"></b></span><span id="stage"></span><button class="btn ghost" id="invite" style="padding:6px 12px">Invite</button></div>
+    <div id="seats"></div>
+    <div id="felt">
+      <div id="pot"></div>
+      <div id="board"></div>
+      <div id="msg"></div>
+    </div>
+    <div id="me"><div id="hole"></div><div class="info" id="myInfo"></div></div>
+    <div id="actions"></div>
+  </div>
+</div>
+<div id="dc" class="hidden"><div><p>Connection lost.</p><button class="btn" onclick="location.reload()">Reconnect</button></div></div>
+
+<script>
+// After you create the Mini App in @BotFather, put its link here, e.g. 'https://t.me/YourBot/poker'
+const APP_LINK = '';
+
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cleanRoom = (s) => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+
+const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+let myId;
+try { myId = localStorage.pokerId || (localStorage.pokerId = Math.random().toString(36).slice(2)); } catch { myId = Math.random().toString(36).slice(2); }
+if (tgUser) myId = String(tgUser.id);
+
+const params = new URLSearchParams(location.search);
+$('name').value = (tgUser && tgUser.first_name) || '';
+$('room').value = cleanRoom((tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || params.get('room'));
+
+let ws, S = null;
+const send = (o) => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+
+$('go').onclick = () => {
+  const room = cleanRoom($('room').value), name = $('name').value.trim();
+  if (!room || !name) return toast('Enter your name and a room code');
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => send({ type: 'join', room, name, userId: myId, initData: tg ? tg.initData : '' });
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'error') return toast(m.message);
+    if (m.type === 'state') { $('join').classList.add('hidden'); $('game').classList.remove('hidden'); render(m.state); }
+  };
+  ws.onclose = () => $('dc').classList.remove('hidden');
+};
+
+$('invite').onclick = () => {
+  const room = S.room;
+  if (APP_LINK && tg) {
+    const url = encodeURIComponent(APP_LINK + '?startapp=' + room);
+    tg.openTelegramLink('https://t.me/share/url?url=' + url + '&text=' + encodeURIComponent('Join my poker table'));
+  } else {
+    (navigator.clipboard ? navigator.clipboard.writeText(room) : Promise.reject()).then(() => toast('Room code copied'), () => toast('Room code: ' + room));
+  }
+};
+
+let tt;
+function toast(t) {
+  let el = $('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = t; el.classList.remove('hidden');
+  clearTimeout(tt); tt = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+
+const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' }, RANK = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+const STAGE = { waiting: 'Waiting', preflop: 'Pre-flop', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Showdown' };
+function card(c, cls = '') {
+  if (!c) return `<div class="card back ${cls}"></div>`;
+  return `<div class="card ${c.s === 'h' || c.s === 'd' ? 'red' : ''} ${cls}">${RANK[c.r] || c.r}<i>${SUIT[c.s]}</i></div>`;
+}
+
+function render(s) {
+  S = s;
+  const me = s.players.find((p) => p.id === myId);
+  $('roomLabel').textContent = s.room;
+  $('stage').textContent = STAGE[s.stage];
+  $('pot').textContent = s.pot ? 'Pot ' + s.pot : '';
+  $('board').innerHTML = [0, 1, 2, 3, 4].map((i) => (s.board[i] ? card(s.board[i]) : '<div class="card empty"></div>')).join('');
+
+  $('seats').innerHTML = s.players.filter((p) => p.id !== myId).map((p) => {
+    const tag = p.folded ? 'Folded' : p.allIn ? 'All-in' : p.bet ? 'Bet ' + p.bet : '';
+    const cls = (s.toAct === p.id ? 'turn ' : '') + (p.folded ? 'out' : '');
+    return `<div class="seat ${cls}"><div class="n">${esc(p.name)}${s.dealerId === p.id ? ' (D)' : ''}</div>
+      <div class="c">${p.chips} ${tag ? '· ' + tag : ''}</div>
+      <div class="cards">${p.hole.map((c) => card(c, 'sm')).join('')}</div></div>`;
+  }).join('');
+
+  $('hole').innerHTML = me ? me.hole.map((c) => card(c, 'big')).join('') : '';
+  $('myInfo').innerHTML = me ? `<b>${me.chips} chips</b>${me.bet ? 'Your bet ' + me.bet : ''}${s.dealerId === me.id ? ' (dealer)' : ''}` : '';
+
+  // result line
+  let msg = '';
+  if (s.stage === 'showdown' && s.winners.length) {
+    const tot = {};
+    s.winners.forEach((w) => (tot[w.name] = (tot[w.name] || 0) + w.amount));
+    msg = Object.entries(tot).map(([n, a]) => `${esc(n)} wins ${a}`).join(', ') + '. Next hand starts soon.';
+  } else if (s.stage === 'waiting') {
+    msg = s.players.length < 2 ? 'Waiting for friends to join.' : 'Everyone here? Start the game.';
+  } else if (s.toAct && s.toAct !== myId) {
+    const p = s.players.find((x) => x.id === s.toAct);
+    msg = p ? `Waiting for ${esc(p.name)}` : '';
+  } else if (me && me.folded && s.stage !== 'showdown') {
+    msg = 'You will join the next hand.';
+  }
+  $('msg').innerHTML = msg;
+
+  renderActions(s, me);
+}
+
+function renderActions(s, me) {
+  const box = $('actions');
+  box.innerHTML = '';
+  if (s.stage === 'waiting') {
+    box.innerHTML = `<button class="btn" id="start" ${s.players.length < 2 ? 'disabled' : ''}>Start game</button>`;
+    $('start').onclick = () => send({ type: 'start' });
+    return;
+  }
+  if (!me || s.toAct !== myId) return;
+
+  const toCall = s.currentBet - me.bet;
+  const maxT = me.bet + me.chips;
+  const minT = Math.min(maxT, s.currentBet + s.minRaise);
+  const canRaise = maxT > s.currentBet;
+  box.innerHTML = `
+    ${canRaise ? `<input type="range" id="amt" min="${minT}" max="${maxT}" value="${minT}" step="1">` : ''}
+    <div class="row">
+      <button class="btn ghost" id="fold">Fold</button>
+      <button class="btn ghost" id="call">${toCall > 0 ? 'Call ' + Math.min(toCall, me.chips) : 'Check'}</button>
+      ${canRaise ? '<button class="btn" id="raise"></button>' : ''}
+    </div>`;
+  $('fold').onclick = () => send({ type: 'action', action: 'fold' });
+  $('call').onclick = () => send({ type: 'action', action: toCall > 0 ? 'call' : 'check' });
+  if (canRaise) {
+    const amt = $('amt'), rb = $('raise');
+    const label = () => (rb.textContent = (+amt.value === maxT ? 'All-in ' : s.currentBet ? 'Raise to ' : 'Bet ') + amt.value);
+    amt.oninput = label; label();
+    rb.onclick = () => send({ type: 'action', action: 'raise', amount: +amt.value });
+  }
+}
+</script>
+</body>
+</html>
