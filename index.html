@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--wood:#140f0c;--felt:#0f4a33;--felt2:#09291d;--ivory:#f6f1e3;--ink:#1c1a17;--brass:#d4af5a;--red:#b3262e;--muted:#8fae9f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:radial-gradient(circle at 50% 0,#24190f,var(--wood) 70%);color:var(--ivory);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button,input{font:inherit}
+.hidden{display:none!important}
+#app{height:100%;display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));gap:6px}
+#join{margin:auto;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
+#join h1{font:700 40px Georgia,serif;margin:0;color:var(--brass);letter-spacing:1px}
+#join p{margin:0;color:var(--muted)}
+input{width:100%;padding:13px 14px;border-radius:10px;border:1px solid #3a3228;background:#241c16;color:var(--ivory)}
+.btn{border:0;border-radius:12px;padding:13px 14px;background:linear-gradient(#e2c06f,#b98f3a);color:#241c10;font-weight:700;box-shadow:0 2px 0 #7a5d22}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:#2c231b;color:var(--ivory);font-weight:600;box-shadow:none}
+.btn:disabled{opacity:.4}
+#game{flex:1;display:flex;flex-direction:column;gap:6px;min-height:0}
+#top{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+#top b{color:var(--ivory)}
+#table{position:relative;flex:1;min-height:280px}
+#oval{position:absolute;inset:12% 5% 8%;border-radius:50%;background:radial-gradient(ellipse at 50% 40%,var(--felt),var(--felt2));border:7px solid #2a1d12;box-shadow:inset 0 0 0 2px #d4af5a55,inset 0 0 50px #0008,0 12px 30px #000a}
+#mid{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:90%}
+#pot{font:700 20px Georgia,serif;color:var(--brass);min-height:26px;text-shadow:0 1px 2px #000}
+#board{display:flex;gap:4px}
+#msg{font-size:13px;text-align:center;min-height:18px;color:var(--ivory);text-shadow:0 1px 2px #000;max-width:100%}
+.seat{position:absolute;transform:translate(-50%,-50%);width:84px;text-align:center;font-size:12px;transition:opacity .3s}
+.seat.out{opacity:.4}
+.av{position:relative;width:44px;height:44px;margin:0 auto 2px;border-radius:50%;background:hsl(var(--h),45%,36%);border:3px solid #3a3228;display:flex;align-items:center;justify-content:center;font:700 19px Georgia,serif}
+.seat.turn .av,#me.turn .av{border-color:var(--brass);animation:pulse 1.2s infinite}
+.seat.win .av,#me.win .av{border-color:#ffe08a;box-shadow:0 0 18px 4px #ffd45e99}
+@keyframes pulse{50%{box-shadow:0 0 14px 3px #d4af5a99}}
+.dl{position:absolute;right:-8px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--ivory);color:var(--ink);font:700 11px/18px system-ui;font-style:normal}
+.nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{color:var(--brass)}
+.seat .cards{display:flex;gap:2px;justify-content:center;margin-top:2px;min-height:37px}
+.tag{font-size:11px;color:var(--muted)}
+.hn{font-size:11px;color:#ffe08a;font-weight:700}
+.bet{display:inline-block;margin-top:2px;padding:1px 8px;border-radius:10px;background:#0009;border:1px solid var(--brass);color:var(--ivory);font-size:11px}
+.card{width:46px;height:66px;border-radius:7px;background:var(--ivory);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 22px/1 Georgia,serif;box-shadow:0 2px 4px #0008}
+.card i{font-style:normal;font-size:22px}
+.card.red{color:var(--red)}
+.card.back{background:repeating-linear-gradient(45deg,#7a1f2a,#7a1f2a 5px,#5e1721 5px,#5e1721 10px);border:2px solid var(--ivory)}
+.card.empty{background:#0000;border:2px dashed #ffffff26;box-shadow:none}
+.card.sm{width:25px;height:36px;font-size:13px;border-radius:4px}
+.card.sm i{font-size:12px}
+.card.big{width:62px;height:90px;font-size:30px}
+.card.big i{font-size:30px}
+.deal{animation:deal .45s ease-out both}
+@keyframes deal{from{transform:translateY(-40px) rotate(-8deg) scale(.6);opacity:0}}
+#tbar{height:5px;border-radius:3px;background:#ffffff14;overflow:hidden}
+#tbar i{display:block;height:100%;width:0;background:var(--brass)}
+#tbar.low i{background:#e0524d}
+#me{display:flex;align-items:center;justify-content:center;gap:12px}
+#me .av{margin:0}
+#me .info{font-size:13px;color:var(--muted)}
+#me .info b{display:block;color:var(--ivory);font-size:16px}
+#me .st{font-size:15px}
+#hole{display:flex;gap:6px}
+#emotes{display:flex;justify-content:center;gap:6px}
+#emotes button{background:#241c16;border:1px solid #3a3228;border-radius:10px;padding:2px 9px;font-size:18px}
+#actions{display:flex;flex-direction:column;gap:6px}
+#actions .row{display:flex;gap:6px}
+#actions .row .btn{flex:1;padding:12px 6px}
+#actions .quick .btn{padding:6px 4px;font-size:13px}
+#actions input[type=range]{padding:0;accent-color:var(--brass)}
+.float{position:absolute;left:50%;top:0;font-size:26px;pointer-events:none;animation:up 2s ease-out forwards}
+@keyframes up{to{transform:translateY(-60px);opacity:0}}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--red);color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;max-width:90%;z-index:5}
+#dc{position:fixed;inset:0;background:#000d;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;z-index:9}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="join">
+    <h1>Poker</h1>
+    <p>Texas Hold'em with friends. Enter a room code and share it with them.</p>
+    <input id="name" placeholder="Your name" maxlength="20" autocomplete="off">
+    <input id="room" placeholder="Room code (letters and numbers)" maxlength="24" autocomplete="off">
+    <button class="btn" id="go">Join table</button>
+  </div>
+  <div id="game" class="hidden">
+    <div id="top"><span>Room <b id="roomLabel"></b></span><span id="stage"></span><button class="btn ghost" id="invite" style="padding:6px 12px">Invite</button></div>
+    <div id="table"><div id="oval"></div><div id="seats"></div>
+      <div id="mid"><div id="pot"></div><div id="board"></div><div id="msg"></div></div></div>
+    <div id="tbar"><i></i></div>
+    <div id="me"><div class="av" id="meav"></div><div class="info" id="myInfo"></div><div id="hole"></div></div>
+    <div id="emotes"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+<div id="dc" class="hidden"><div><p>Connection lost.</p><button class="btn" onclick="location.reload()">Reconnect</button></div></div>
+<script>
+// After you create the Mini App in @BotFather, put its link here, e.g. 'https://t.me/YourBot/poker'
+const APP_LINK = 'https://t.me/pokernight1_bot/Poker';
+
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cleanRoom = (s) => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+const hap = (k, t) => { try { tg && tg.HapticFeedback && tg.HapticFeedback[k](t); } catch {} };
+function ping() { try { const c = ping.c || (ping.c = new AudioContext()), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.value = .05; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + .12); } catch {} }
+
+const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+let myId;
+try { myId = localStorage.pokerId || (localStorage.pokerId = Math.random().toString(36).slice(2)); } catch { myId = Math.random().toString(36).slice(2); }
+if (tgUser) myId = String(tgUser.id);
+const params = new URLSearchParams(location.search);
+$('name').value = (tgUser && tgUser.first_name) || '';
+$('room').value = cleanRoom((tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || params.get('room'));
+
+let ws, S = null, prevBoard = 0, prevHole = '';
+let tEnd = 0, tTotal = 25000, tWarned = false;
+setInterval(() => {
+  const bar = $('tbar');
+  const left = tEnd ? Math.max(0, tEnd - Date.now()) : 0;
+  bar.firstChild.style.width = (left / tTotal) * 100 + '%';
+  bar.classList.toggle('low', left > 0 && left < 6000);
+  if (S && S.toAct === myId && left > 0 && left < 6000 && !tWarned) { tWarned = true; hap('notificationOccurred', 'warning'); }
+}, 200);
+const send = (o) => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+
+$('go').onclick = () => {
+  const room = cleanRoom($('room').value), name = $('name').value.trim();
+  if (!room || !name) return toast('Enter your name and a room code');
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => send({ type: 'join', room, name, userId: myId, initData: tg ? tg.initData : '' });
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'error') return toast(m.message);
+    if (m.type === 'emote') return floatEmote(m.id, m.emoji);
+    if (m.type === 'state') { $('join').classList.add('hidden'); $('game').classList.remove('hidden'); render(m.state); }
+  };
+  ws.onclose = () => $('dc').classList.remove('hidden');
+};
+
+$('emotes').innerHTML = ['👍', '😂', '😮', '🔥', '😎', '🤝'].map((e) => `<button>${e}</button>`).join('');
+$('emotes').onclick = (e) => { if (e.target.tagName === 'BUTTON') send({ type: 'emote', emoji: e.target.textContent }); };
+
+function floatEmote(id, emoji) {
+  const host = id === myId ? $('meav') : [...document.querySelectorAll('.seat')].find((el) => el.dataset.id === id);
+  if (!host) return;
+  host.style.position = host.style.position || 'relative';
+  const f = document.createElement('div');
+  f.className = 'float'; f.textContent = emoji;
+  host.appendChild(f); setTimeout(() => f.remove(), 2000);
+}
+
+$('invite').onclick = () => {
+  const room = S.room;
+  if (APP_LINK && tg) {
+    const url = encodeURIComponent(APP_LINK + '?startapp=' + room);
+    tg.openTelegramLink('https://t.me/share/url?url=' + url + '&text=' + encodeURIComponent('Join my poker table'));
+  } else {
+    (navigator.clipboard ? navigator.clipboard.writeText(room) : Promise.reject()).then(() => toast('Room code copied'), () => toast('Room code: ' + room));
+  }
+};
+
+let tt;
+function toast(t) {
+  let el = $('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = t; el.classList.remove('hidden');
+  clearTimeout(tt); tt = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+
+const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' }, RANK = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+const STAGE = { waiting: 'Waiting', preflop: 'Pre-flop', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Showdown' };
+function card(c, cls = '') {
+  if (!c) return `<div class="card back ${cls}"></div>`;
+  return `<div class="card ${c.s === 'h' || c.s === 'd' ? 'red' : ''} ${cls}">${RANK[c.r] || c.r}<i>${SUIT[c.s]}</i></div>`;
+}
+const hue = (id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const initial = (n) => ([...String(n)][0] || '?').toUpperCase();
+function pos(i, n) {
+  if (n === 1) return { x: 50, y: 12 };
+  const a = ((200 - (220 * i) / (n - 1)) * Math.PI) / 180;
+  return { x: 50 + 38 * Math.cos(a), y: 52 - 42 * Math.sin(a) };
+}
+
+function render(s) {
+  const me = s.players.find((p) => p.id === myId);
+  const won = (id) => s.stage === 'showdown' && s.winners.some((w) => w.id === id);
+  const myTurn = s.toAct === myId;
+  if (myTurn && !(S && S.toAct === myId)) { ping(); hap('impactOccurred', 'medium'); }
+  if (s.stage === 'showdown' && (!S || S.stage !== 'showdown') && won(myId)) hap('notificationOccurred', 'success');
+
+  $('roomLabel').textContent = s.room;
+  $('stage').textContent = STAGE[s.stage];
+  $('pot').textContent = s.pot ? 'Pot ' + s.pot : '';
+  $('board').innerHTML = [0, 1, 2, 3, 4].map((i) => (s.board[i] ? card(s.board[i], i >= prevBoard ? 'deal' : '') : '<div class="card empty"></div>')).join('');
+  prevBoard = s.board.length;
+
+  const others = s.players.filter((p) => p.id !== myId);
+  $('seats').innerHTML = others.map((p, i) => {
+    const q = pos(i, others.length);
+    const tag = p.handName ? `<div class="hn">${p.handName}</div>` : p.folded ? '<div class="tag">Fold</div>' : p.allIn ? '<div class="tag">All-in</div>' : '';
+    return `<div class="seat ${s.toAct === p.id ? 'turn' : ''} ${p.folded ? 'out' : ''} ${won(p.id) ? 'win' : ''}" data-id="${esc(p.id)}" style="left:${q.x}%;top:${q.y}%">
+      <div class="av" style="--h:${hue(p.id)}">${esc(initial(p.name))}${s.dealerId === p.id ? '<i class="dl">D</i>' : ''}</div>
+      <div class="nm">${esc(p.name)}</div><div class="st">${p.chips}</div>
+      <div class="cards">${p.hole.map((c) => card(c, 'sm')).join('')}</div>${tag}${p.bet ? `<div class="bet">${p.bet}</div>` : ''}</div>`;
+  }).join('');
+
+  const key = me ? JSON.stringify(me.hole) : '';
+  $('hole').innerHTML = me ? me.hole.map((c) => card(c, 'big' + (key !== prevHole ? ' deal' : ''))).join('') : '';
+  prevHole = key;
+  const av = $('meav');
+  av.style.setProperty('--h', hue(myId)); av.textContent = me ? initial(me.name) : '';
+  $('me').className = (myTurn ? 'turn ' : '') + (won(myId) ? 'win' : '');
+  $('myInfo').innerHTML = me ? `<b>${esc(me.name)}</b><span class="st">${me.chips} chips</span>${me.bet ? ' · bet ' + me.bet : ''}${me.handName ? `<div class="hn">${me.handName}</div>` : ''}` : '';
+
+  let msg = '';
+  if (s.stage === 'showdown' && s.winners.length) {
+    const tot = {};
+    s.winners.forEach((w) => (tot[w.name] = (tot[w.name] || 0) + w.amount));
+    msg = '🏆 ' + Object.entries(tot).map(([n, a]) => `${esc(n)} +${a}`).join(', ');
+  } else if (s.stage === 'waiting') {
+    msg = s.players.length < 2 ? 'Waiting for friends to join' : 'Ready when you are';
+  } else if (s.toAct && !myTurn) {
+    const p = s.players.find((x) => x.id === s.toAct);
+    msg = p ? `${esc(p.name)} is thinking…` : '';
+  } else if (me && me.folded && s.stage !== 'showdown') msg = 'You will join the next hand';
+  $('msg').innerHTML = msg;
+
+  tTotal = s.turnMs || tTotal; tEnd = s.remaining ? Date.now() + s.remaining : 0; tWarned = false;
+  S = s;
+  renderActions(s, me);
+}
+
+function renderActions(s, me) {
+  const box = $('actions');
+  box.innerHTML = '';
+  if (s.stage === 'waiting') {
+    box.innerHTML = `<button class="btn" id="start" ${s.players.length < 2 ? 'disabled' : ''}>Start game</button>`;
+    $('start').onclick = () => send({ type: 'start' });
+    return;
+  }
+  if (!me || s.toAct !== myId) return;
+  const toCall = s.currentBet - me.bet;
+  const maxT = me.bet + me.chips;
+  const minT = Math.min(maxT, s.currentBet + s.minRaise);
+  const canRaise = maxT > s.currentBet;
+  box.innerHTML = `
+    ${canRaise ? `<input type="range" id="amt" min="${minT}" max="${maxT}" value="${minT}" step="1">
+    <div class="row quick"><button class="btn ghost" data-q="min">Min</button><button class="btn ghost" data-q="half">½ pot</button><button class="btn ghost" data-q="pot">Pot</button><button class="btn ghost" data-q="all">All-in</button></div>` : ''}
+    <div class="row">
+      <button class="btn ghost" id="fold">Fold</button>
+      <button class="btn ghost" id="call">${toCall > 0 ? 'Call ' + Math.min(toCall, me.chips) : 'Check'}</button>
+      ${canRaise ? '<button class="btn" id="raise"></button>' : ''}
+    </div>`;
+  $('fold').onclick = () => send({ type: 'action', action: 'fold' });
+  $('call').onclick = () => send({ type: 'action', action: toCall > 0 ? 'call' : 'check' });
+  if (canRaise) {
+    const amt = $('amt'), rb = $('raise');
+    const label = () => (rb.textContent = (+amt.value === maxT ? 'All-in ' : s.currentBet ? 'Raise to ' : 'Bet ') + amt.value);
+    amt.oninput = label; label();
+    const set = (v) => { amt.value = Math.max(minT, Math.min(maxT, Math.round(v))); label(); };
+    box.querySelector('.quick').onclick = (e) => {
+      const q = e.target.dataset.q;
+      if (q === 'min') set(minT); else if (q === 'half') set(s.currentBet + s.pot / 2); else if (q === 'pot') set(s.currentBet + s.pot); else if (q === 'all') set(maxT);
+    };
+    rb.onclick = () => send({ type: 'action', action: 'raise', amount: +amt.value });
+  }
+}
+</script>
+</body>
+</html>
